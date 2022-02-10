@@ -1,63 +1,64 @@
 <template>
-  <ul class="el-pager" @click="onPagerClick" @keyup.enter="onEnter">
+  <ul :class="[ns.e('pager')]">
+    <li v-if="showPrev">
+      <span v-if="prevText">{{ prevText }}</span>
+      <el-icon v-else><arrow-left /></el-icon>
+    </li>
     <li
-      v-if="pageCount > 0"
-      :class="{ active: currentPage === 1, disabled }"
       class="number"
-      :aria-current="currentPage === 1"
-      tabindex="0"
+      :class="{ active: currentPage === 1 }"
+      @click="goPage(1)"
     >
       1
     </li>
-    <li
-      v-if="showPrevMore"
-      class="el-icon more btn-quickprev"
-      :class="{ disabled }"
-      @mouseenter="onMouseenter('left')"
-      @mouseleave="quickPrevHover = false"
-    >
-      <d-arrow-left v-if="quickPrevHover" />
-      <more-filled v-else />
+    <li v-if="showQuickPrev" class="el-icon btn-quickjump btn-quickprev">
+      <d-arrow-left />
+      <more-filled />
     </li>
     <li
-      v-for="pager in pagers"
-      :key="pager"
-      :class="{ active: currentPage === pager, disabled }"
+      v-for="p in pagers"
+      :key="`number-${p}`"
       class="number"
-      :aria-current="currentPage === pager"
-      tabindex="0"
+      :class="{ active: currentPage === p }"
+      @click="goPage(p)"
     >
-      {{ pager }}
+      {{ p }}
     </li>
-    <li
-      v-if="showNextMore"
-      class="el-icon more btn-quicknext"
-      :class="{ disabled }"
-      @mouseenter="onMouseenter('right')"
-      @mouseleave="quickNextHover = false"
-    >
-      <d-arrow-right v-if="quickNextHover" />
-      <more-filled v-else />
+    <li v-if="showQuickNext" class="el-icon btn-quickjump btn-quicknext">
+      <d-arrow-right />
+      <more-filled />
     </li>
     <li
       v-if="pageCount > 1"
-      :class="{ active: currentPage === pageCount, disabled }"
       class="number"
-      :aria-current="currentPage === pageCount"
-      tabindex="0"
+      :class="{ active: currentPage === pageCount }"
+      @click="goPage(pageCount)"
     >
       {{ pageCount }}
     </li>
+    <li v-if="showNext">
+      <span v-if="nextText">{{ nextText }}</span>
+      <el-icon v-else><arrow-right /></el-icon>
+    </li>
   </ul>
 </template>
+
 <script lang="ts">
-import { defineComponent, ref, computed, watchEffect } from 'vue'
-import { MoreFilled, DArrowLeft, DArrowRight } from '@element-plus/icons-vue'
+import { defineComponent, ref, computed } from 'vue'
+import { useNamespace } from '@element-plus/hooks'
+import { ElIcon } from '@element-plus/components/icon'
+import {
+  ArrowLeft,
+  ArrowRight,
+  MoreFilled,
+  DArrowLeft,
+  DArrowRight,
+} from '@element-plus/icons-vue'
 
 const paginationPagerProps = {
   currentPage: {
     type: Number,
-    default: 1,
+    required: true,
   },
   pageCount: {
     type: Number,
@@ -65,147 +66,67 @@ const paginationPagerProps = {
   },
   pagerCount: {
     type: Number,
-    default: 7,
+    required: true,
+  },
+  prevText: {
+    type: String,
+    required: true,
+  },
+  nextText: {
+    type: String,
+    required: true,
   },
   disabled: Boolean,
 } as const
 
 export default defineComponent({
   name: 'ElPaginationPager',
-
   components: {
+    ElIcon,
+    ArrowLeft,
+    ArrowRight,
+    MoreFilled,
     DArrowLeft,
     DArrowRight,
-    MoreFilled,
   },
   props: paginationPagerProps,
   emits: ['change'],
-
   setup(props, { emit }) {
-    const showPrevMore = ref(false)
-    const showNextMore = ref(false)
-    const quickPrevHover = ref(false)
-    const quickNextHover = ref(false)
+    const ns = useNamespace('pagination')
+    const showPrev = ref(true)
+    const showNext = ref(true)
+
+    const showQuickPrev = ref(true)
+    const showQuickNext = ref(true)
+
+    const goPage = (n: number) => {
+      emit('change', n)
+    }
 
     const pagers = computed(() => {
-      const pagerCount = props.pagerCount
-      const halfPagerCount = (pagerCount - 1) / 2
-      const currentPage = Number(props.currentPage)
-      const pageCount = Number(props.pageCount)
-
-      let showPrevMore = false
-      let showNextMore = false
-      if (pageCount > pagerCount) {
-        if (currentPage > pagerCount - halfPagerCount) {
-          showPrevMore = true
+      const ret: number[] = []
+      if (props.pagerCount >= props.pageCount) {
+        if (props.pageCount > 2) {
+          for (let i = 2; i < props.pageCount; i++) {
+            ret.push(i)
+          }
         }
-        if (currentPage < pageCount - halfPagerCount) {
-          showNextMore = true
-        }
+        return ret
       }
-      const array: number[] = []
-      if (showPrevMore && !showNextMore) {
-        const startPage = pageCount - (pagerCount - 2)
-        for (let i = startPage; i < pageCount; i++) {
-          array.push(i)
-        }
-      } else if (!showPrevMore && showNextMore) {
-        for (let i = 2; i < pagerCount; i++) {
-          array.push(i)
-        }
-      } else if (showPrevMore && showNextMore) {
-        const offset = Math.floor(pagerCount / 2) - 1
-        for (let i = currentPage - offset; i <= currentPage + offset; i++) {
-          array.push(i)
-        }
-      } else {
-        for (let i = 2; i < pageCount; i++) {
-          array.push(i)
-        }
-      }
-
-      return array
+      return ret
     })
-
-    watchEffect(() => {
-      const halfPagerCount = (props.pagerCount - 1) / 2
-
-      showPrevMore.value = false
-      showNextMore.value = false
-
-      if (props.pageCount > props.pagerCount) {
-        if (props.currentPage > props.pagerCount - halfPagerCount) {
-          showPrevMore.value = true
-        }
-        if (props.currentPage < props.pageCount - halfPagerCount) {
-          showNextMore.value = true
-        }
-      }
-    })
-
-    function onMouseenter(direction: 'left' | 'right') {
-      if (props.disabled) return
-      if (direction === 'left') {
-        quickPrevHover.value = true
-      } else {
-        quickNextHover.value = true
-      }
-    }
-
-    function onEnter(e: UIEvent) {
-      const target = e.target as HTMLElement
-      if (
-        target.tagName.toLowerCase() === 'li' &&
-        Array.from(target.classList).includes('number')
-      ) {
-        const newPage = Number(target.textContent)
-        if (newPage !== props.currentPage) {
-          emit('change', newPage)
-        }
-      }
-    }
-
-    function onPagerClick(event: UIEvent) {
-      const target = event.target as HTMLElement
-      if (target.tagName.toLowerCase() === 'ul' || props.disabled) {
-        return
-      }
-
-      let newPage = Number(target.textContent)
-      const pageCount = props.pageCount
-      const currentPage = props.currentPage
-      const pagerCountOffset = props.pagerCount - 2
-      if (target.className.includes('more')) {
-        if (target.className.includes('quickprev')) {
-          newPage = currentPage - pagerCountOffset
-        } else if (target.className.includes('quicknext')) {
-          newPage = currentPage + pagerCountOffset
-        }
-      }
-      if (!isNaN(newPage)) {
-        if (newPage < 1) {
-          newPage = 1
-        }
-        if (newPage > pageCount) {
-          newPage = pageCount
-        }
-      }
-      if (newPage !== currentPage) {
-        emit('change', newPage)
-      }
-    }
-
     return {
-      showPrevMore,
-      showNextMore,
-      quickPrevHover,
-      quickNextHover,
+      ns,
+      showPrev,
+      showNext,
+      showQuickPrev,
+      showQuickNext,
       pagers,
 
-      onMouseenter,
-      onPagerClick,
-      onEnter,
+      goPage,
     }
   },
 })
 </script>
+
+<style lang="scss" scoped></style>

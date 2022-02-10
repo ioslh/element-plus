@@ -6,8 +6,9 @@ import {
   defineComponent,
   getCurrentInstance,
   watch,
+  renderSlot,
 } from 'vue'
-import { useLocale } from '@element-plus/hooks'
+import { useLocale, useNamespace } from '@element-plus/hooks'
 import {
   debugWarn,
   buildProps,
@@ -41,6 +42,7 @@ type LayoutKey =
   | 'total'
   | 'sizes'
   | 'slot'
+  | 'space'
 
 export const paginationProps = buildProps({
   total: Number,
@@ -109,6 +111,7 @@ export default defineComponent({
   emits: paginationEmits,
 
   setup(props, { emit, slots }) {
+    const ns = useNamespace('pagination')
     const { t } = useLocale()
     const vnodeProps = getCurrentInstance()!.vnode.props || {}
     // we can find @xxx="xxx" props on `vnodeProps` to check if user bind corresponding events
@@ -238,15 +241,6 @@ export default defineComponent({
       emit('next-click', currentPageBridge.value)
     }
 
-    function addClass(element: any, cls: string) {
-      if (element) {
-        if (!element.props) {
-          element.props = {}
-        }
-        element.props.class = [element.props.class, cls].join(' ')
-      }
-    }
-
     provide(elPaginationKey, {
       pageCount: pageCountBridge,
       disabled: computed(() => props.disabled),
@@ -262,13 +256,6 @@ export default defineComponent({
       }
       if (!props.layout) return null
       if (props.hideOnSinglePage && pageCountBridge.value <= 1) return null
-      const rootChildren: Array<VNode | VNode[] | null> = []
-      const rightWrapperChildren: Array<VNode | VNode[] | null> = []
-      const rightWrapperRoot = h(
-        'div',
-        { class: 'el-pagination__rightwrapper' },
-        rightWrapperChildren
-      )
       const TEMPLATE_MAP: Record<
         Exclude<LayoutKey, '->'>,
         VNode | VNode[] | null
@@ -286,6 +273,8 @@ export default defineComponent({
           pagerCount: props.pagerCount,
           onChange: handleCurrentChange,
           disabled: props.disabled,
+          prevText: props.prevText,
+          nextText: props.nextText,
         }),
         next: h(Next, {
           disabled: props.disabled,
@@ -301,39 +290,26 @@ export default defineComponent({
           disabled: props.disabled,
           size: props.small ? 'small' : 'default',
         }),
-        slot: slots?.default?.() ?? null,
+        slot: renderSlot(slots, 'default'),
         total: h(Total, { total: isAbsent(props.total) ? 0 : props.total }),
+        space: h('span', { class: ns.e('space') }),
       }
 
-      const components = props.layout
-        .split(',')
-        .map((item: string) => item.trim()) as LayoutKey[]
-
-      let haveRightWrapper = false
-
-      components.forEach((c) => {
-        if (c === '->') {
-          haveRightWrapper = true
-          return
-        }
-        if (!haveRightWrapper) {
-          rootChildren.push(TEMPLATE_MAP[c])
-        } else {
-          rightWrapperChildren.push(TEMPLATE_MAP[c])
-        }
+      const components = props.layout.split(',').map((item: string) => {
+        let layoutKey = item.trim() as LayoutKey
+        if (layoutKey === '->') layoutKey = 'space'
+        return layoutKey in TEMPLATE_MAP ? TEMPLATE_MAP[layoutKey] : null
       })
 
-      addClass(rootChildren[0], 'is-first')
-      addClass(rootChildren[rootChildren.length - 1], 'is-last')
+      // if (haveRightWrapper && rightWrapperChildren.length > 0) {
+      //   addClass(rightWrapperChildren[0], 'is-first')
+      //   addClass(
+      //     rightWrapperChildren[rightWrapperChildren.length - 1],
+      //     'is-last'
+      //   )
+      //   rootChildren.push(rightWrapperRoot)
+      // }
 
-      if (haveRightWrapper && rightWrapperChildren.length > 0) {
-        addClass(rightWrapperChildren[0], 'is-first')
-        addClass(
-          rightWrapperChildren[rightWrapperChildren.length - 1],
-          'is-last'
-        )
-        rootChildren.push(rightWrapperRoot)
-      }
       return h(
         'div',
         {
@@ -347,7 +323,7 @@ export default defineComponent({
             },
           ],
         },
-        rootChildren
+        components
       )
     }
   },
